@@ -1,3 +1,5 @@
+Adresse web fly.io: wan22-backend.fly.dev
+
 # Wan 2.2 Backend API
 
 Backend FastAPI pour sécuriser les clés API RunPod.

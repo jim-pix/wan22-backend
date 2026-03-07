@@ -16,8 +16,13 @@ primary_region = 'cdg'
 
 [env]
   PORT = '8000'
+  DB_PATH = '/data/users.db'
 
 [[vm]]
   memory = '1gb'
   cpu_kind = 'shared'
   cpus = 1
+
+[[mounts]]
+  source = 'easyai_data'
+  destination = '/data'

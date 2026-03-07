@@ -5,8 +5,8 @@ import httpx
 import os
 from typing import Optional
 from dotenv import load_dotenv
-from database import init_db, create_user, list_users, increment_video_count, deactivate_user, activate_user, delete_user, update_quota, list_loras, create_lora, update_lora, delete_lora, get_lora_by_id, save_generation, get_user_generations
-from auth import verify_token_and_quota, verify_token_only, generate_token
+from database import init_db, create_user, list_users, increment_video_count, deactivate_user, activate_user, delete_user, update_quota, list_loras, create_lora, update_lora, delete_lora, get_lora_by_id
+from auth import verify_token_and_quota, generate_token
 
 # Charger le .env
 load_dotenv()
@@ -49,13 +49,11 @@ class GenerateRequest(BaseModel):
     color_protect: bool = False
     correct_strength: float = 0.0
     workflow_name: str = "animation_image"
-    loras: list = []
 
 
 class CreateUserRequest(BaseModel):
     email: str
-    quota_daily: int = 3
-    is_admin: int = 0
+    quota_daily: int = 3  # nombre de vidéos par jour
 
 
 class TriggerWord(BaseModel):
@@ -67,8 +65,7 @@ class CreateLoraRequest(BaseModel):
     name: str
     filename: str                        # ex: "cinematic-style.safetensors"
     description: Optional[str] = None
-    category: str = "style"             # "style" | "character" | "object" | "acceleration_high" | "acceleration_low"
-    lora_type: str = "standard"          # "standard" | "acceleration_high" | "acceleration_low"
+    category: str = "style"             # "style" | "character"
     trigger_words: list[TriggerWord] = []
     default_strength: float = 0.8       # entre 0.0 et 1.0
     preview_url: Optional[str] = None
@@ -79,7 +76,6 @@ class UpdateLoraRequest(BaseModel):
     filename: Optional[str] = None
     description: Optional[str] = None
     category: Optional[str] = None
-    lora_type: Optional[str] = None
     trigger_words: Optional[list[TriggerWord]] = None
     default_strength: Optional[float] = None
     preview_url: Optional[str] = None
@@ -100,7 +96,7 @@ async def admin_create_user(
         raise HTTPException(status_code=403, detail="Accès refusé")
     
     token = generate_token()
-    success = create_user(request.email, token, request.quota_daily, request.is_admin)
+    success = create_user(request.email, token, request.quota_daily)
     
     if not success:
         raise HTTPException(status_code=400, detail="Email déjà existant")
@@ -173,7 +169,6 @@ async def admin_create_lora(request: CreateLoraRequest, x_admin_secret: str = He
         filename=request.filename,
         description=request.description,
         category=request.category,
-        lora_type=request.lora_type,
         trigger_words=trigger_words,
         default_strength=request.default_strength,
         preview_url=request.preview_url
@@ -223,20 +218,19 @@ def read_root():
 
 
 @app.get("/loras")
-async def get_loras(user=Depends(verify_token_only)):
+async def get_loras(user=Depends(verify_token_and_quota)):
     """Retourne la liste des LoRAs disponibles (utilisateurs authentifiés)"""
     return list_loras(active_only=True)
 
 
 @app.get("/me")
-async def get_me(user=Depends(verify_token_only)):
+async def get_me(user=Depends(verify_token_and_quota)):
     """Retourne les infos de quota de l'utilisateur connecté"""
     return {
         "email": user["email"],
         "videos_today": user["videos_today"],
         "quota_daily": user["quota_daily"],
-        "remaining": user["quota_daily"] - user["videos_today"],
-        "is_admin": bool(user["is_admin"])
+        "remaining": user["quota_daily"] - user["videos_today"]
     }
 
 
@@ -321,24 +315,6 @@ async def cancel_job(job_id: str, user=Depends(verify_token_and_quota)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-
-@app.post("/generations/save")
-async def save_gen(
-    job_id: str,
-    video_url: str,
-    user_prompt: str,
-    user=Depends(verify_token_only)
-):
-    """Sauvegarde une génération terminée dans l'historique"""
-    save_generation(user["id"], job_id, video_url, user_prompt)
-    return {"status": "saved"}
-
-
-@app.get("/my-generations")
-async def my_generations(page: int = 1, user=Depends(verify_token_only)):
-    """Retourne l'historique de générations de l'utilisateur"""
-    return get_user_generations(user["id"], page=page, per_page=12)
 
 if __name__ == "__main__":
     import uvicorn
