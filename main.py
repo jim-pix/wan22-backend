@@ -38,7 +38,7 @@ RUNPOD_BASE_URL = f"https://api.runpod.ai/v2/{RUNPOD_ENDPOINT_ID}"
 
 class GenerateRequest(BaseModel):
     user_prompt: str
-    image_base64: str
+    image_base64: Optional[str] = None
     workflow_type: int = 1
     video_format: str = "16:9"
     size_scale: int = 65
@@ -50,6 +50,8 @@ class GenerateRequest(BaseModel):
     correct_strength: float = 0.0
     workflow_name: str = "animation_image"
     loras: list = []
+    last_frame_base64: Optional[str] = None
+    use_first_frame: bool = True
 
 
 class CreateUserRequest(BaseModel):
@@ -258,7 +260,7 @@ async def generate_video(
                     "Authorization": f"Bearer {RUNPOD_API_KEY}",
                     "Content-Type": "application/json"
                 },
-                json={"input": request.dict()}
+                json={"input": {**request.dict(), "username": user["email"]}}
             )
             
             if response.status_code != 200:
